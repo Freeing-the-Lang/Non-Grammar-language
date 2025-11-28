@@ -1,4 +1,4 @@
-name: Non-Grammar-Language C++ TMP Build + AutoTag + Release
+name: Non-Grammar-Language C++ TMP Build + AutoTag + Release v5
 
 on:
   push:
@@ -52,31 +52,32 @@ jobs:
         with:
           fetch-depth: 0
 
-      # C++ compiler setup
-      - name: Setup Compiler (Linux/macOS)
+      # Linux/macOS Compiler
+      - name: Setup Compiler (Unix)
         if: matrix.os != 'windows-latest'
         run: |
           sudo apt-get update || true
           sudo apt-get install -y g++ || true
-        shell: bash
 
-      - name: Build (Unix)
+      - name: Build (Linux/macOS)
         if: matrix.os != 'windows-latest'
         run: |
           mkdir -p build
           g++ -std=c++20 -O2 src/main.cpp -o build/non_grammar_lang
-        shell: bash
 
-      - name: Build (Windows)
+      # Windows Compiler (MinGW)
+      - name: Install MinGW (Windows)
+        if: matrix.os == 'windows-latest'
+        run: |
+          choco install mingw -y
+
+      - name: Build (Windows with g++)
         if: matrix.os == 'windows-latest'
         run: |
           mkdir build
-          cl /EHsc /std:c++20 src\main.cpp /Fe:build\non_grammar_lang.exe
-        shell: powershell
+          g++ -std=c++20 -O2 src\\main.cpp -o build\\non_grammar_lang.exe
 
-      # ---------------------------------------------------
-      # SHA256 Proof
-      # ---------------------------------------------------
+      # SHA256
       - name: SHA256 (Unix)
         if: matrix.os != 'windows-latest'
         run: |
@@ -87,12 +88,10 @@ jobs:
         if: matrix.os == 'windows-latest'
         run: |
           mkdir proof
-          certutil -hashfile build\non_grammar_lang.exe SHA256 > proof\SHA256_windows.txt
+          certutil -hashfile build\\non_grammar_lang.exe SHA256 > proof\\SHA256_windows.txt
         shell: powershell
 
-      # ---------------------------------------------------
       # ProofLedger
-      # ---------------------------------------------------
       - name: Create ProofLedger
         run: |
           mkdir ledger
@@ -103,13 +102,10 @@ jobs:
             echo "Commit: ${{ github.sha }}"
             echo "Branch: ${{ github.ref_name }}"
             echo "-------------------------------------"
-            cat proof/*.txt || true
+            cat proof/* || true
           } > ledger/PROOF_LEDGER_${{ matrix.os }}.txt
-        shell: bash
 
-      # ---------------------------------------------------
-      # Packaging (OS별 분리)
-      # ---------------------------------------------------
+      # Packaging
       - name: Package Dist (Unix)
         if: matrix.os != 'windows-latest'
         run: |
@@ -117,16 +113,14 @@ jobs:
           cp build/non_grammar_lang dist/
           cp -r proof dist/
           cp -r ledger dist/
-        shell: bash
 
       - name: Package Dist (Windows)
         if: matrix.os == 'windows-latest'
         run: |
           mkdir dist
-          Copy-Item "build\non_grammar_lang.exe" -Destination "dist\"
-          Copy-Item "proof" -Destination "dist\" -Recurse
-          Copy-Item "ledger" -Destination "dist\" -Recurse
-        shell: powershell
+          Copy-Item "build\\non_grammar_lang.exe" -Destination "dist\\"
+          Copy-Item "proof" -Destination "dist\\" -Recurse
+          Copy-Item "ledger" -Destination "dist\\" -Recurse
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
@@ -150,7 +144,7 @@ jobs:
           cd artifacts
           zip -r Non-Grammar-Language_${{ needs.autotag.outputs.tag }}.zip .
 
-      - name: GitHub Release
+      - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.autotag.outputs.tag }}
